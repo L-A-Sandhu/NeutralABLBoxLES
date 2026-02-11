@@ -1,21 +1,18 @@
 # NeutralABLBoxLES
 
-This repository provides an OpenFOAM case template for a neutral atmospheric boundary layer (ABL) large-eddy simulation (LES) in a horizontally periodic box. Neutral means the configuration omits buoyancy and thermal stratification, so shear over a rough wall drives turbulence and a body-force term maintains the target mean wind.
+Neutral atmospheric boundary layer (ABL) large-eddy simulation (LES) in a horizontally periodic box, provided as a clean OpenFOAM case template. The setup omits buoyancy and thermal stratification, so turbulence is shear driven over a rough wall and the mean streamwise wind is maintained by a body-force term in a forcing slab.
 
-The default setup uses a 1800 × 800 × 600 m domain with a 180 × 80 × 80 `blockMesh`, cyclic lateral boundaries in x and y, a rough-wall bottom (`atmNutUWallFunction`), a shear-free top (`slip`), and the `dynamicLagrangian` subgrid-scale (SGS) model. A forcing slab (`cellZone`) spanning z = 80–100 m applies `meanVelocityForce` to maintain `Ubar = (8 0 0) m/s`.
+The workflow runs a spin-up to reach a statistically steady state, then writes 3D velocity snapshots on an exact cadence (default 0.5 s) during a capture window. This output pattern fits downstream post-processing, data-assimilation, and machine-learning pipelines that expect uniform time sampling.
 
 ## Requirements
 
-- OpenFOAM.com (tested with v2412)
-- MPI runtime for parallel runs
-- Python 3 + NumPy for `export_cube.py` (optional)
+You need OpenFOAM.com (tested with v2412). For parallel runs you need MPI. The optional exporter uses Python 3 with NumPy.
 
-## Run steps
+## Quick start
 
-After cloning, rebuild the generated mesh and the forcing zone. These are not tracked in git.
+After cloning, rebuild generated artifacts that are not tracked in git:
 
 ```bash
-# from the case root
 blockMesh
 topoSet
 ```
@@ -24,75 +21,74 @@ Run the case with the wrapper script:
 
 ```bash
 chmod +x run_les.sh
-
-# example: 8 ranks, 20× turnover-time spin-up, 200 s capture, 0.5 s snapshots
 NP=8 SPIN_MULT=20 CAPTURE_DURATION=200 WR_INTERVAL=0.5 ./run_les.sh
 ```
 
-The script creates a timestamped directory under `runs/`, executes a spin-up, then switches to a capture stage that writes velocity snapshots on an exact time grid (via `writeControl adjustableRunTime`). If `RECONSTRUCT=1` (default), it reconstructs parallel fields into single-domain time folders.
+### Run controls
 
-### Wrapper controls
+The wrapper reads these environment variables:
 
-Set these as environment variables on the command line.
+- `NP` sets the MPI rank count. Set `NP=1` for serial runs.
+- `SPIN_MULT` scales the spin-up length in turnover-time units.
+- `CAPTURE_DURATION` sets the capture window length in seconds.
+- `WR_INTERVAL` sets the capture write cadence in seconds.
+- `RECONSTRUCT` toggles `reconstructPar` (use `RECONSTRUCT=0` to keep only `processor*/` folders).
+- `SOLVER` selects the solver (default `pimpleFoam`).
 
-- `NP` number of MPI ranks (use `NP=1` for serial).
-- `SPIN_MULT` spin-up duration multiplier in turnover-time units `t* = H / u_τ` (the script estimates `u_τ` from a log-law at `zref`).
-- `CAPTURE_DURATION` capture length in seconds.
-- `WR_INTERVAL` write interval in seconds (default 0.5).
-- `SOLVER` solver name (default `pimpleFoam`).
-- `RECONSTRUCT` `0/1` to disable/enable `reconstructPar` (default 1).
+## Outputs
+
+Each run directory under `runs/` contains the logs and the capture metadata:
+
+- `log.spinup`, `log.capture`
+- `capture_window.json`
+- reconstructed time folders (if `RECONSTRUCT=1`) or `processor*/` folders (if `RECONSTRUCT=0`)
 
 ## Export velocity cubes
 
-Run export after you have reconstructed time folders (the wrapper does this when `RECONSTRUCT=1`).
+If you ran in parallel, use reconstructed time folders for export (the wrapper does this when `RECONSTRUCT=1`). Then export a uniform time grid:
 
 ```bash
-python3 export_cube.py --run runs/<run_dir> --t0 0 --t1 200 --dt 0.5
+python3 export_cube.py --run runs/<run_dir> --t0 0 --t1 200 --dt 0.5 --out-prefix U_all
 ```
 
-Outputs are written into the run directory:
+The exporter writes `.npy` arrays plus a JSON metadata file describing grid spacing, domain extents, and the sampled time stamps.
 
-- `U_...npy` with shape `(Nt, Nz, Ny, Nx, 3)`
-- `P_...npy` with shape `(Nt, Nz, Ny, Nx)`
-- `meta_UP_dt...json` with grid and timing metadata
+## Configuration map
 
-If you change mesh resolution, update `Nx`, `Ny`, and `Nz` in `export_cube.py` so reshaping matches your grid.
+The case is intentionally modular. The table below points to the files you typically edit for common changes.
 
-## What to edit for common changes
+| Change you want | File to edit | What to edit |
+|---|---|---|
+| Change domain size or resolution | `system/blockMeshDict` | Domain extents (vertices) and cell counts (`blocks`). Rerun `blockMesh`. |
+| Move or resize the forcing slab | `system/topoSetDict` | The `boxToCell` z-range and extents that build `forcingZone`. Rerun `topoSet`. |
+| Change target mean wind speed | `system/fvOptions` | `meanVelocityForceCoeffs.Ubar` (vector). |
+| Tune forcing response | `system/fvOptions` | `meanVelocityForceCoeffs.relaxation` (stability vs responsiveness). |
+| Change surface roughness | `0/nut` | `bottom` patch `atmNutUWallFunction.z0`. |
+| Change SGS model | `constant/turbulenceProperties` | `LESModel` and `delta` options. |
+| Change time step and CFL control | `system/controlDict.*` | `maxCo`, `maxDeltaT`, and `deltaT` behavior. |
+| Change output cadence | `system/controlDict.capture` | `writeControl` and `writeInterval`. Keep `adjustableRunTime` if you want an exact cadence. |
+| Change solver settings | `system/fvSolution` | PIMPLE loops, tolerances, relaxation. |
+| Change discretization | `system/fvSchemes` | Time and spatial schemes (stability and dissipation). |
+| Change parallel decomposition | `system/decomposeParDict` | Decomposition method and layout. |
 
-Domain size and resolution
-Edit `system/blockMeshDict` (vertices and `blocks`). Rerun `blockMesh`.
+## Repository notes
 
-Forcing slab position and thickness
-Edit `system/topoSetDict` (the `boxToCell` z-range and extents). Rerun `topoSet`. Keep the zone name consistent with `system/fvOptions`.
+This repository tracks the case template only. It does not track generated mesh connectivity (`constant/polyMesh/`) or solver outputs (time folders, `processor*/`, `postProcessing/`, `runs/`). Rebuild the mesh and forcing zone with `blockMesh` and `topoSet` after cloning.
 
-Target mean wind and forcing response
-Edit `system/fvOptions` under `meanVelocityForceCoeffs`.
-- `Ubar` sets the target mean velocity vector.
-- `relaxation` controls how aggressively the forcing drives the mean.
+## References
 
-Surface roughness
-Edit `0/nut` on the `bottom` patch.
-- `z0` sets roughness length (default 0.01 m).
+Chen, Y., Wang, D., Feng, D., Tian, G., Gupta, V., Cao, R., Wan, M., Chen, S. Three-dimensional spatiotemporal wind field reconstruction based on LiDAR and multi-scale PINN. *Applied Energy* 377 (2025) 124577. DOI: 10.1016/j.apenergy.2024.124577.
 
-LES closure
-Edit `constant/turbulenceProperties`.
-- `LESModel` selects the SGS model.
-- `delta` selects the filter-width definition.
+### BibTeX
 
-Time-step control and output cadence
-Edit `system/controlDict.spinup` and `system/controlDict.capture`.
-- Keep `writeControl adjustableRunTime` in capture if you want exact snapshot timing.
-- If you tighten `WR_INTERVAL`, check `maxCo` and `maxDeltaT` for stability.
-
-Numerics and solver stability
-Edit `system/fvSolution` (PIMPLE, tolerances) and `system/fvSchemes` (discretization).
-
-Parallel decomposition
-Edit `system/decomposeParDict` to change the decomposition strategy.
-
-## Related publication
-
-A similar neutral ABL LES configuration (periodic lateral boundaries, rough-wall treatment, and mean-flow forcing) is used as reference flow data in:
-
-Y. Chen, D. Wang, D. Feng, G. Tian, V. Gupta, R. Cao, M. Wan, S. Chen, “Three-dimensional spatiotemporal wind field reconstruction based on LiDAR and multi-scale PINN,” *Applied Energy*, 377 (2025) 124577. https://doi.org/10.1016/j.apenergy.2024.124577
+```bibtex
+@article{Chen2025ThreeDimensionalWindReconstruction,
+  title   = {Three-dimensional spatiotemporal wind field reconstruction based on {LiDAR} and multi-scale {PINN}},
+  author  = {Chen, Yuanqing and Wang, Ding and Feng, Dachuan and Tian, Geng and Gupta, Vikrant and Cao, Renjing and Wan, Minping and Chen, Shiyi},
+  journal = {Applied Energy},
+  volume  = {377},
+  pages   = {124577},
+  year    = {2025},
+  doi     = {10.1016/j.apenergy.2024.124577}
+}
+```
