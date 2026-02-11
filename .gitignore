@@ -1,0 +1,42 @@
+# ===== OpenFOAM generated mesh and decomposition =====
+constant/polyMesh/
+processor*/
+*.foam
+
+# ===== Solver outputs and post-processing =====
+postProcessing/
+runs/
+log.*
+slurm-*.out
+*.log
+
+# ===== Time directories (keep initial conditions in ./0) =====
+0.*
+[1-9]*/
+# (optional) also ignore negative times if they ever appear
+-*/
+
+# ===== Exported datasets / figures =====
+*.npy
+*.npz
+*.csv
+*.h5
+*.hdf5
+*.vtk
+*.vtp
+*.vtu
+*.png
+*.jpg
+*.jpeg
+*.pdf
+
+# ===== Editor / OS junk =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+__pycache__/
+*.pyc
