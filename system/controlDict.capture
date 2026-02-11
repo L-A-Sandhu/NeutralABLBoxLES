@@ -1,0 +1,53 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| OpenFOAM: The Open Source CFD Toolbox                                      |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+
+application     pimpleFoam;
+
+// Continue from the end of spin-up
+startFrom       latestTime;
+startTime       0;
+
+stopAt          endTime;
+endTime         233;         // overwritten by run_les.sh
+
+// Time step control
+// Keep adaptive dt, but write on *exact* 0.5 s grid by using adjustableRunTime.
+deltaT          0.2;
+adjustTimeStep  yes;
+maxCo           0.7;
+maxDeltaT       0.5;
+
+// Output control: exactly every 0.5 s as in the paper
+writeControl    adjustableRunTime;
+writeInterval   0.5;
+purgeWrite      0;
+
+writeFormat     ascii;
+writePrecision  8;
+writeCompression off;
+
+timeFormat      general;
+timePrecision   8;
+
+runTimeModifiable yes;
+
+functions
+{
+    wallShear
+    {
+        type            wallShearStress;
+        libs            ("libfieldFunctionObjects.so");
+        patches         (bottom);
+
+        writeControl    writeTime;
+        writeInterval   1;
+    }
+}

@@ -1,0 +1,53 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| OpenFOAM: The Open Source CFD Toolbox                                      |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+
+application     pimpleFoam;
+
+startFrom       startTime;
+startTime       0;
+
+stopAt          endTime;
+endTime         33;          // overwritten by run_les.sh
+
+// Time step control
+// Spin-up does not need exact output cadence, so allow adaptive dt
+// (stability) but Write only the final time by setting writeInterval=endTime in run_les.sh.
+deltaT          0.2;
+adjustTimeStep  yes;
+maxCo           0.7;
+maxDeltaT       0.5;
+
+// Output control
+writeControl    runTime;
+writeInterval   33;          // overwritten by run_les.sh
+purgeWrite      1;           // keep only 1 time directory
+
+writeFormat     ascii;
+writePrecision  8;
+writeCompression off;
+
+timeFormat      general;
+timePrecision   8;
+
+runTimeModifiable yes;
+
+functions
+{
+    wallShear
+    {
+        type            wallShearStress;
+        libs            ("libfieldFunctionObjects.so");
+        patches         (bottom);
+
+        writeControl    writeTime;
+        writeInterval   1;
+    }
+}

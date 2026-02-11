@@ -1,0 +1,31 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| OpenFOAM: The Open Source CFD Toolbox                                      |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvOptions;
+}
+
+// Maintain a target mean velocity within forcingZone (defined by topoSet)
+// This matches the paper's "momentum source maintaining U_inf=8 m/s at z≈90 m".
+meanVelocitySource
+{
+    type            meanVelocityForce;
+    active          yes;
+
+    selectionMode   cellZone;
+    cellZone        forcingZone;
+
+    // OpenFOAM.com (v2xxx+) uses 'fields' to name the operand field
+    fields          (U);
+
+    // desired mean velocity vector
+    Ubar            (8 0 0);
+
+    // relaxation factor for the forcing correction
+    relaxation      1;
+}

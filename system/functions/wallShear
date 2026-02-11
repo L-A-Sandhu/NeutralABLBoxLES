@@ -1,0 +1,9 @@
+wallShear
+{
+    type            wallShearStress;
+    libs            ("libfieldFunctionObjects.so");
+    patches         (bottom);
+
+    writeControl    runTime;
+    writeInterval   0.5;
+}

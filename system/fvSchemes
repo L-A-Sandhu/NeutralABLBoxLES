@@ -1,0 +1,53 @@
+FoamFile
+{
+    version 2.0;
+    format ascii;
+    class dictionary;
+    object fvSchemes;
+}
+
+// Second-order in time is standard for LES in a periodic box
+// (the paper does not fix a specific ddt scheme)
+ddtSchemes
+{
+    default backward;
+}
+
+gradSchemes
+{
+    default Gauss linear;
+    grad(U)  Gauss linear;
+}
+
+divSchemes
+{
+    default                      none;
+
+    div(phi,U)                   Gauss linearUpwind grad(U);
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+
+    // dynamicLagrangian auxiliary fields
+    div(phi,flm)                 Gauss upwind;
+    div(phi,fmm)                 Gauss upwind;
+}
+
+laplacianSchemes
+{
+    default Gauss linear corrected;
+}
+
+interpolationSchemes
+{
+    default linear;
+}
+
+snGradSchemes
+{
+    default corrected;
+}
+
+fluxRequired
+{
+    default no;
+    p;
+}

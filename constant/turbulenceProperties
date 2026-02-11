@@ -1,0 +1,32 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| OpenFOAM: The Open Source CFD Toolbox                                      |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      turbulenceProperties;
+}
+
+simulationType  LES;
+
+LES
+{
+    model           dynamicLagrangian;
+    turbulence      on;
+    printCoeffs     on;
+
+    delta           cubeRootVol;
+
+    dynamicLagrangianCoeffs
+    {
+        filter          simple;
+        theta           1.5;
+
+        simpleFilterCoeffs
+        {
+        }
+    }
+}
